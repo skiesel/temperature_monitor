@@ -1,0 +1,191 @@
+<html>
+<head>
+	<link rel="stylesheet" type="text/css" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css">
+
+	<link rel="stylesheet" type="text/css" href="css/jquery.ui.labeledslider.css">
+
+	<script src="http://code.jquery.com/jquery.js"></script>
+	<script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+	<script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+	<script src="js/jquery.ui.labeledslider.js"></script>
+	
+</head>
+<body>
+  <style>
+	* {
+		font-family: Verdana, Arial, Helvetica, sans-serif;
+		font-size: 12pt;
+	}
+	.ui-slider-wrapper.ui-widget.horizontal {
+		width:100% !important ; 
+	}
+	.ui-slider-wrapper.horizontal {
+		height: 3.5em;
+	}
+	.temperatureMarker {
+		position:relative;
+		text-align:center;
+		padding:20px 0px;
+	}
+	.rangeLabel {
+		position: absolute;
+		display:inline;
+	}
+
+   </style>
+   <div id="sliderTemplate"  style="display:none;">
+   		<div class="temperatureRange"></div>
+			<span class="rangeMin rangeLabel"></span>
+			<span class="rangeMax rangeLabel"></span>
+		<div class="temperature">
+			<div class="temperatureMarker">
+				<span class="temperatureArrow" style="display: inline-block;">&#8679;</span><br/>
+				<span class="temperatureValue">2</span>
+			</div>
+		</div>
+	</div>
+
+	<div id="temperatureControls"></div>
+	<div>
+		<input id="enableAlerts" type="checkbox" />Enable Alerts
+	</div>
+<script>
+
+var controls = 0;
+var temperatureOutOfRange = [];
+
+$.get("/getTemperatures", function(temperatures) {
+	controls = temperatures.length;
+	for(var i = 0; i < temperatures.length; i++) {
+		temperatureOutOfRange.push(true);
+		createControl(i, temperatures[i]);
+	}
+});
+
+window.setInterval(function() {
+	$.get("/getTemperatures", function(temperatures) {
+		for(var i = 0; i < temperatures.length; i++) {
+			setTemperatureLabel(i, temperatures[i]);
+			setTemperatureColor(i);
+		}
+	});
+}, 30000);
+
+function createControl(index, initialValue) {
+	var id = "control" + index;
+	var $temperatureControl = $("#sliderTemplate").clone().attr("id", id).show();
+	$("#temperatureControls").append($temperatureControl);
+
+	$temperatureControl.find(".temperatureRange").labeledslider({
+		min: 40,
+		max: 210,
+		values: [ 60, 80 ],
+		range: true,
+		step: 1,
+		tickInterval: 25,
+		slide: function(event, ui) {
+			setTimeout(function() {
+				var handleIndex = $(ui.handle).data('uiSliderHandleIndex');
+				var label = handleIndex == 0 ? '.rangeMin' : '.rangeMax';
+				setHandleLabelPlacement($(event.target).parent().parent(), $(event.target).parent().siblings(label), ui.value); }, 5);
+		}
+	});
+
+	setTemperatureLabel(index, initialValue);
+	setHandleLabelPlacementForControl(index);
+	setTemperatureColor(index);
+}
+
+function setTemperatureLabel(index, temp) {
+	$("#control" + index).find(".temperatureValue").text(temp);
+	setTemperatureLabelPlacement(index, true);
+}
+
+function setTemperatureLabelPlacement(index, animate) {
+	var $slider = $("#control" + index);
+	var $value = $slider.find(".temperatureValue");
+	var $marker = $slider.find(".temperatureMarker");
+
+	var sliderMin = $slider.find(".temperatureRange").labeledslider("option", "min");
+	var sliderMax = $slider.find(".temperatureRange").labeledslider("option", "max");
+
+	var width = $slider.width();
+	var percent = ($value.text() - sliderMin) / (sliderMax - sliderMin);
+	var labelWidth = $marker.width();
+	if(animate === true) {
+		$marker.animate({left : (width * percent - (labelWidth / 2)) + "px"}, 500);
+	} else {
+		$marker.css({left : (width * percent - (labelWidth / 2)) + "px"}, 500);
+	}
+}
+
+function setTemperatureColor(index) {
+	var $slider = $("#control" + index);
+	var $value = $slider.find(".temperatureValue");
+	var $marker = $slider.find(".temperatureMarker");
+
+	var temp = $value.text();
+
+	var values = $slider.find(".temperatureRange").labeledslider("option", "values");
+	var min = values[0];
+	var max = values[1];
+
+	if(temp >= min && temp <= max) {
+		temperatureOutOfRange[index] = false;
+		$marker.css({"color" : "green"});
+	} else {
+		if(temperatureOutOfRange[index] == false && $("#enableAlerts").prop("checked") === true) {
+			temperatureOutOfRange[index] = true;
+			$.post("/temperatureOutOfRange",
+				{
+					"which"	: index,
+					"value" : temp,
+					"min" : min,
+					"max" : max,
+				});
+		}
+		$marker.css({"color" : "red"});
+	}
+}
+
+function setHandleLabelPlacement(slider, handleLabel, value) {
+	var sliderMin = slider.find(".temperatureRange").labeledslider("option", "min");
+	var sliderMax = slider.find(".temperatureRange").labeledslider("option", "max");
+
+	var width = slider.width();
+	var percent = (value - sliderMin) / (sliderMax - sliderMin);
+	handleLabel.text(value)
+	var labelWidth = handleLabel.width();
+
+	var bodyMargin = $('body').css("margin").replace("px", "");
+
+	handleLabel.css({left : (width * percent + bodyMargin) + "px"});
+
+	var index = slider.attr("id").replace("control", "");
+	setTemperatureColor(index);
+}
+
+function setHandleLabelPlacementForControl(index) {
+	var $slider = $("#control" + index);
+	var $minHandle = $slider.find(".rangeMin");
+	var $maxHandle = $slider.find(".rangeMax");
+	var values = $slider.find(".temperatureRange").labeledslider("option", "values");
+	var min = values[0];
+	var max = values[1];
+
+	setHandleLabelPlacement($slider, $minHandle, min);
+	setHandleLabelPlacement($slider, $maxHandle, max);
+
+	setTemperatureColor(index);
+}
+
+$(window).resize(function() {
+	for(var i = 0; i < controls; i++) {
+  		setTemperatureLabelPlacement(i, false);
+  		setHandleLabelPlacementForControl(i);
+  	}
+});
+
+</script>
+</body>
+</html>
