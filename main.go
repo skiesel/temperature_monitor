@@ -5,17 +5,22 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-	// "github.com/skiesel/thermometers/sensors"
+	"github.com/skiesel/thermometers/sensors"
 )
 
 var (
 	lastSentEmail = time.Now()
 )
 
-func init() {
+func main() {
+	fs := http.FileServer(http.Dir("static"))
+	http.Handle("/static/", http.StripPrefix("/static/", fs))
+
 	http.HandleFunc("/getTemperatures", getTemperatures)
 	http.HandleFunc("/temperatureOutOfRange", temperatureOutOfRange)
 	http.HandleFunc("/", renderIndex)
+
+	http.ListenAndServe(":8080", nil)
 }
 
 func renderIndex(w http.ResponseWriter, r *http.Request) {
