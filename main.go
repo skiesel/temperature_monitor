@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,9 +11,12 @@ import (
 
 var (
 	lastSentEmail = time.Now()
+	noThermometer = flag.Bool("nothermometer", false, "whether or not to look for thermometers (helpful for testing)")
 )
 
 func main() {
+	flag.Parse()
+
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
@@ -29,9 +33,14 @@ func renderIndex(w http.ResponseWriter, r *http.Request) {
 
 func getTemperatures(w http.ResponseWriter, r *http.Request) {
 	temperatures := []float64{}
-	readings := sensors.GetThermometerReadings()
-	for _, reading := range readings {
-		temperatures = append(temperatures, reading.Fahrenheit)
+
+	if *noThermometer {
+		temperatures = []float64{60, 70, 80}
+	} else {
+		readings := sensors.GetThermometerReadings()
+		for _, reading := range readings {
+			temperatures = append(temperatures, reading.Fahrenheit)
+		}
 	}
 
 	js, err := json.Marshal(temperatures)
@@ -59,7 +68,7 @@ func temperatureOutOfRange(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := fmt.Sprintf("Thermometer %d measured %g which is outside of specified range of %g - %g", data.Which, data.Value, data.Min, data.Max)
-
+	fmt.Println(body)
 	if time.Now().Sub(lastSentEmail).Minutes() > 5 {
 		lastSentEmail = time.Now()
 		SendMail("Designated Brewer: Temperature Monitor Alert", body)

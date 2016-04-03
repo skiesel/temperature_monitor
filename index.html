@@ -137,12 +137,12 @@ function setTemperatureColor(index) {
 		if(temperatureOutOfRange[index] == false && $("#enableAlerts").prop("checked") === true) {
 			temperatureOutOfRange[index] = true;
 			$.post("/temperatureOutOfRange",
-				{
-					"which"	: index,
-					"value" : temp,
-					"min" : min,
-					"max" : max,
-				});
+				JSON.stringify({
+					"which"	: parseInt(index),
+					"value" : parseFloat(temp),
+					"min" : parseFloat(min),
+					"max" : parseFloat(max),
+				}));
 		}
 		$marker.css({"color" : "red"});
 	}
